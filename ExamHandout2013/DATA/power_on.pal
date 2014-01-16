@@ -1,0 +1,11 @@
+program power_on;
+
+procedure main()
+var n : int;
+    i : int;
+    j : int;
+begin
+    n := 5;
+    i := 2;
+    write(2^2*(0-2)^2*(0-1));
+end;

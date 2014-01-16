@@ -40,20 +40,19 @@ struct
     | Or      of Exp * Exp         * Pos      (* e.g., (x=5) or y *)
     | Not     of Exp               * Pos      (* e.g., not (x>3) *)
     | FunApp  of Ident  * Exp list * Pos      (* e.g., f(1, 3+x) *)
-(*  FOR THE EXAM:
-    | Pow     of Exp * Exp         * Pos
- *)
+    | Pow     of Exp * Exp         * Pos      (* e.g., a ^ b *)
 
   and Dec = Dec of Ident * Type * Pos
 
   and LVAL = Var    of Ident                        (* x           *)
            | Index  of Ident  * Exp list            (* arr[1,2,3]  *)
 
-  and Stmt = Return   of Exp option                  * Pos (* return a[i];           *)
-    |        ProcCall of Ident  * Exp list           * Pos (* my_proc(arr, x, y);    *)
-    |        Assign   of LVAL   * Exp                * Pos (* Assignment: a[i]:=x+y; *)
-    |        IfThEl   of Exp * StmtBlock * StmtBlock * Pos (* if x<y then d:=y-x; else d:=x-y; *)
-    |        While    of Exp * StmtBlock             * Pos (* while a<b do begin x[i]:= a;a:=a+1 end *)
+  and Stmt = Return    of Exp option                  * Pos (* return a[i];           *)
+    |        ProcCall  of Ident  * Exp list           * Pos (* my_proc(arr, x, y);    *)
+    |        Assign    of LVAL   * Exp                * Pos (* Assignment: a[i]:=x+y; *)
+    |        IfThEl    of Exp * StmtBlock * StmtBlock * Pos (* if x<y then d:=y-x; else d:=x-y; *)
+    |        While     of Exp * StmtBlock             * Pos (* while a<b do begin x[i]:= a;a:=a+1 end *)
+    |        GuardedDo of (Exp * StmtBlock) list * Pos
 (*  FOR THE EXAM:
     |        RepeatUntil of Exp * StmtBlock  * Pos
     |        Break of Pos
@@ -65,7 +64,7 @@ struct
   and Case = Case of BasicVal * StmtBlock * Pos
            | DefaultCase of StmtBlock * Pos
  *)
-
+ 
   and StmtBlock = Block of Dec list * Stmt list
 
   and FunDec = Func of Type * Ident * Dec list * StmtBlock * Pos

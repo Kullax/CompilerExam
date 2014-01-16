@@ -231,6 +231,15 @@ struct
                              pp_type tp1^" and "^pp_type tp2^" at ", pos)
         end
 
+    | typeCheckExp( vtab, AbSyn.Pow (e1,e2,pos), _) =
+        let val e1_new = typeCheckExp(vtab, e1, KnownType(BType Int) )
+            val e2_new = typeCheckExp(vtab, e2, KnownType(BType Int) )
+            val (tp1, tp2) = (typeOfExp e1_new, typeOfExp e2_new)
+        in if typesEqual(BType Int, tp1) andalso typesEqual(BType Int, tp2)
+            then Pow(e1_new, e2_new, pos)
+            else raise Error("in type check pow exp, one argument is not of int type "^
+                             pp_type tp1^" and "^pp_type tp2^" at ", pos)
+        end
 
     (* The following allows either left or right to be polymorphic, but not both *)
     | typeCheckExp ( vtab, AbSyn.Equal(e1, e2, pos), _ ) =
@@ -376,7 +385,55 @@ struct
 
       (*** EXAM: flat zipWith ***)
     | typeCheckExp ( vtab, AbSyn.FunApp ("zipWith", args, pos), etp ) =
-        raise Error("EXAM TASK requires student implementation, please!", pos)
+        let    
+            val a_id = map ( fn t => case t of
+                            AbSyn.LValue(AbSyn.Var id, pos) => id
+                            | _ => raise Error("Arguments in zipWith are not exclusively of type function and array", pos) ) args
+            val (fid, a1, a2) = if length args = 3 then
+                                    (List.nth(a_id,0), List.nth(a_id, 1), List.nth(a_id, 2))
+                                else
+                                    raise Error("zipWith expected three arguments got different", pos)
+            
+            val (fun_arg_tps, fun_ret_tp) =
+                case SymTab.lookup fid (!functionTable) of
+                  NONE => raise Error("In typeCheck function call, function "^fid^" not in function table, at ", pos)
+                | SOME (tps, SOME rtp) => if ( (length tps) = (length args)-1 ) then (tps, rtp)
+                                          else raise Error("In typeCheckExp function "^fid^" in zipWith call, the number"^
+                                                           " of arguments does not match the number of arguments required (2), at ", pos)
+                | SOME ssig => raise Error("In typeCheck function call, function "^fid^
+                                           " of signature "^showFunType ssig^" has no return type at ", pos)
+            val exp_arg_tps = map ( fn t => KnownType t ) fun_arg_tps 
+            val args_tps    = map ( fn e => expectedBasicType e ) exp_arg_tps
+            
+            val id_tp_1 = (case SymTab.lookup a1 vtab of
+                             SOME tp => tp
+                           | NONE    => raise Error("Second argument in zipWith, "^a1^", of type array, is not in VTab, at ", pos) )
+                           
+            val id_tp_2 = (case SymTab.lookup a2 vtab of
+                             SOME tp => tp
+                           | NONE    => raise Error("Third argument in zipWith, "^a2^", of type array, is not in VTab, at ", pos) )
+
+            val (r1, tp1) = case id_tp_1 of
+                 Array(r1,btp1) => (r1,btp1)
+                 | _ => raise Error("Second argument in zipWith is not of type array", pos)
+
+             val (r2, tp2) = case id_tp_2 of
+                 Array(r2,btp2) => (r2,btp2)
+                 | _ => raise Error("Third argument in zipWith is not of type array", pos)
+         
+        in
+
+            if r1 = r2 then
+                if List.nth(args_tps,0) = SOME tp1 andalso List.nth(args_tps, 1) = SOME tp2 then
+(*                        | ZipWith of FIdent * Exp * Exp* Pos      (* zipWith(f,{a1,...,an},{b1,...,bn}) == { f(a1,b1), ..., f(an,bn) } *)    *)
+                    TpAbSyn.ZipWith((fid, (fun_arg_tps, SOME fun_ret_tp)), (LValue(Var(a1, id_tp_1) , pos)), (LValue(Var(a2, id_tp_2), pos)) , pos)
+
+                else
+                    raise Error("Type mismatch between arrays and function in zipWith", pos)
+            else
+                raise Error("Rank mismatch between arrays in zipWith",pos)
+  
+        end
         (* result should use TpAbSyn.sml's Exp constructor: ZipWith of FIdent * Exp * Exp* Pos *)
 
       (* all the other, i.e., regular, function calls *)
@@ -510,7 +567,24 @@ struct
             then While( new_cond, new_body, pos)
             else raise Error("in type check while statement, illegal condition type "^pp_type cond_tp^" at ", pos)
         end
+        
+    | typeCheckStmt( vtab, AbSyn.GuardedDo(lst, pos) ) =
+(*        let val (new_lst, new_bodies) = map (fn (x,y) => (typeCheckExp(vtab, x, KnownType(BType Bool)), typeCheckBlock(vtab, y)) ) lst *)
+            let val new_lst     = map (fn (x,y) => typeCheckExp(vtab, x, KnownType(BType Bool) )) lst
+                val new_bodies  = map (fn (x,y) => typeCheckBlock(vtab, y)) lst
 
+            val tp_lst = map (fn x => typeOfExp x) new_lst
+            fun legal_conds([]) = true
+              | legal_conds(x::xs) = if typesEqual(x, BType Bool) then
+                                        legal_conds(xs)
+                                     else
+                                        false
+        in
+            if legal_conds(tp_lst) then 
+                GuardedDo( ListPair.zip(new_lst, new_bodies), pos)
+            else
+                raise Error("in type check guarded do statement, illegal condition type at ", pos)                                       
+        end
   (*******************************************************************************)
   (*******************************************************************************)
   (***       typeCheckBlock ( f : AbSyn.StmtBlock ) : TpAbSyn.StmtBlock        ***)

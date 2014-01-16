@@ -1,0 +1,34 @@
+program FlatZipWithExample;
+
+function f(a : int; b : char) :
+    int return a + ord(b);
+
+function f2(a : int; b : char) :
+    int return ord(b) - a;
+
+
+procedure main()
+    var a : array of array of int;
+        b : array of array of char;
+        c : array of array of int;
+        d : array of array of int;
+        e : array of array of int;
+    begin
+        a := {{1,2,3},{4,5,6}};
+        b := {{'e','f','g'},{'h','i','j'}};
+        c := zipWith(f2, a, b);        
+        d := zipWith(f, a, b);
+        e := zipWith(f2, a, b);
+        write(d[0,0]); // prints 102
+        write("\n");
+        write(d[0,1]); // prints 104
+        write("\n");
+        write(d[0,2]); // prints 106
+        write("\n");
+        write(d[1,0]); // prints 108
+        write("\n");
+        write(d[1,1]); // prints 110
+        write("\n");
+        write(d[1,2]); // prints 112
+        write("\n");
+    end;

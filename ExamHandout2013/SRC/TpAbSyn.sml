@@ -51,9 +51,7 @@ struct
     | Map     of FIdent * Exp      * Pos      (* map(f,    {a1, ..., an}) == { f(a1), ..., f(an) }    *)
     | Red     of FIdent * Exp      * Pos      (* red(f,    {a1, ..., an}) == f (... f( f(a1, a2), a3 ) ..., an) *) 
     | ZipWith of FIdent * Exp * Exp* Pos      (* zipWith(f,{a1,...,an},{b1,...,bn}) == { f(a1,b1), ..., f(an,bn) } *)   
-(*  FOR THE EXAM:
-    | Pow     of Exp * Exp         * Pos
- *)
+    | Pow     of Exp * Exp         * Pos      (* e.g., x ^ y *)
 
   and Dec = Dec of Ident * Pos
 
@@ -69,13 +67,13 @@ struct
     |        RepeatUntil of Exp * StmtBlock  * Pos
     |        Break of Pos
     |        Continue of Pos
-    |        ForLoop   of Ident * Exp * bool * Exp * StmtBlock * Pos
+    |        ForLoop   of Ident * Exp * bool * Exp * StmtBlock * Pos *)
     |        GuardedDo of (Exp * StmtBlock) list * Pos
-    |        Switch    of Exp * Case list * Pos
+(*    |        Switch    of Exp * Case list * Pos
+ *)
 
   and Case = Case of BasicVal * StmtBlock * Pos
            | DefaultCase of StmtBlock * Pos
-*)
 
   and StmtBlock = Block of Dec list * Stmt list
 
@@ -197,9 +195,8 @@ struct
     | pp_exp (Map    ((nm,_), arr , _)) = "map ( " ^ nm ^ ", " ^ pp_exp arr ^ " ) "
     | pp_exp (Red    ((nm,_), arr , _)) = "reduce ( " ^ nm ^ ", " ^ pp_exp arr ^ " ) "
     | pp_exp (ZipWith((nm,_), arr1 , arr2, _)) = "zipWith ( " ^ nm ^ ", " ^ pp_exp arr1 ^ pp_exp arr2 ^ " ) "
-(*
-    | pp_exp (Pow    (e1, e2, p) = " ( " ^ pp_exp e1 ^ " ) " ^ " ^ " ^ " ( " ^ pp_exp e2 ^ " ) " 
-*)
+    | pp_exp (Pow    (e1, e2, p)) = " ( " ^ pp_exp e1 ^ " ) " ^ " ^ " ^ " ( " ^ pp_exp e2 ^ " ) " 
+
 
   (******************************)
   (*** pretty printing a type ***)
@@ -248,24 +245,24 @@ struct
     | pp_stmt d (ForLoop ((i,_),e1,dir,e2,b,_)) = 
       "\n" ^ makeDepth d ^ "for " ^ i ^ " = " ^ pp_exp e1 ^ 
       (if dir then " to " else " downto ") ^ pp_exp e2 ^
-      " do" ^ pp_block (d+2) b
+      " do" ^ pp_block (d+2) b *)
     | pp_stmt d (GuardedDo ([],p)) = raise Error ("empty guard list",p)
     | pp_stmt d (GuardedDo ((g1,blk1)::gs,_)) =
         "\n " ^ makeDepth d ^ "do " ^ pp_exp g1 ^ ": " ^ pp_block (d+2) blk1 ^
         concat (map (fn (g,b) => "\n " ^ makeDepth d ^ "[] " ^ 
                                  pp_exp g ^ ": " ^ pp_block (d+2) b) gs) ^
         "\n" ^ makeDepth d ^ "done;"
-    | pp_stmt d (Switch (exp, cases, _)) =
+(*    | pp_stmt d (Switch (exp, cases, _)) =
         let val prologue = "\n" ^ makeDepth d ^ "switch " ^ pp_exp exp ^ ":\n"
             val body     = String.concatWith "\n" (map (pp_case d) cases)
         in  prologue ^ body
         end
+ *)
 
   and pp_case d (Case (v, sblk, _)) = makeDepth d ^ "case " ^ pp_bval v ^ ":"
                                       ^ pp_block (d + 2) sblk
     | pp_case d (DefaultCase (sblk, _)) = makeDepth d ^ "default:"
                                           ^ pp_block (d + 2) sblk
-*)
   and pp_stmts d ss = concat ( map ( fn x => pp_stmt d x ^ ";") ss )
 
   and pp_block d (Block (dcls, stmts)) =
@@ -396,8 +393,7 @@ struct
     | typeOfExp ( And    (a,_,_) ) = typeOfExp a (* BType Bool *)
     | typeOfExp ( Or     (a,_,_) ) = typeOfExp a (* BType Bool *)
     | typeOfExp ( Not    (_,  _) ) = BType Bool
-(*  | typeofExp ( Pow    (a,b,_) ) = BType Int   *)
-
+    | typeOfExp ( Pow    (a,b,_) ) = BType Int
     | typeOfExp ( LValue (Var    (_,t)      , _) ) = t
     | typeOfExp ( LValue (Index ((v,t),inds), p) ) =
         ( case t of
@@ -460,12 +456,12 @@ struct
     | typeOfStmt(IfThEl(_, _, _, p) ) = NONE
 (*
     | typeOfStmt(RepeatUntil(_,_,_) ) = NONE
-    | typeOfStmt(Break _) )           = NONE
-    | typeOfStmt(Continue _) )        = NONE
-    | typeOfStmt(ForLoop(_,_,_,_,_,_))= NONE
+    | typeOfStmt(Break _)             = NONE
+    | typeOfStmt(Continue _)          = NONE
+    | typeOfStmt(ForLoop(_,_,_,_,_,_))= NONE *)
     | typeOfStmt(GuardedDo(_,_) )     = NONE
-    | typeOfStmt(Switch(_,_,_) )      = NONE
-*)
+(*    | typeOfStmt(Switch(_,_,_) )      = NONE
+ *)
 
 (***************************************************)
 (*** Helper Function posOfExp/Stmt/Block/Fun     ***)
@@ -489,7 +485,8 @@ struct
     | posOfExp  ( Map    (_,_,p) ) = p
     | posOfExp  ( Red    (_,_,p) ) = p
     | posOfExp  ( ZipWith(_,_,_,p))= p
-(*  | posOfExp  ( Pow    (_,_,p) ) = p  *)
+    | posOfExp  ( Pow    (_,_,p) ) = p
+
 
 
   (*  posOfStmt ( s : Stmt ) : Pos *)
@@ -500,12 +497,12 @@ struct
     | posOfStmt (IfThEl(_,_,_,p) ) = p
 (*
     | posOfStmt(RepeatUntil(_,_,p) ) = p
-    | posOfStmt(Break p) )           = p
-    | posOfStmt(Continue p) )        = p
-    | posOfStmt(ForLoop(_,_,_,_,_,p))= p
+    | posOfStmt(Break p)             = p
+    | posOfStmt(Continue p)          = p
+    | posOfStmt(ForLoop(_,_,_,_,_,p))= p *)
     | posOfStmt(GuardedDo(_,p) )     = p
-    | posOfStmt(Switch(_,_,p) )      = p
-*)
+(*    | posOfStmt(Switch(_,_,p) )      = p
+ *)
 
   (*  posOfExp ( d : Dec ) : Pos *)
   fun posOfDec  ( Dec    (_,  p) ) = p
@@ -574,4 +571,3 @@ fun flattenArrRep ( ArrLit( exp_lst, _, pos ) ) : Exp list =
   | flattenArrRep e = [e]
 
 end
-

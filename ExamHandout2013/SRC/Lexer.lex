@@ -51,6 +51,7 @@
        | "not"          => Parser.NOT    pos
        | "true"         => Parser.TRUE   pos
        | "false"        => Parser.FALSE  pos
+       | "done"         => Parser.DONE   pos
 
        | _              => Parser.ID (s, pos)
 
@@ -103,6 +104,7 @@ rule Token = parse
   | `+`                 { Parser.PLUS     (getPos lexbuf) }
   | `-`                 { Parser.MINUS    (getPos lexbuf) }
   | `*`                 { Parser.TIMES    (getPos lexbuf) }
+  | `^`                 { Parser.POW      (getPos lexbuf) }
   | `/`                 { Parser.DIV      (getPos lexbuf) }
   | `=`                 { Parser.EQ       (getPos lexbuf) }
   | `<`                 { Parser.LTH      (getPos lexbuf) }

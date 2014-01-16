@@ -127,6 +127,17 @@ fun evalNot (BVal (Log b), pos) = BVal (Log (not b))
   | evalNot (v, pos) =
     raise Error( "Not: argument type does not match. Arg1: " ^ pp_val v, pos )
 
+fun evalPow(BVal(Num n1), BVal(Num n2), pos) =
+    let
+        fun power(x,0) = 1
+      | power(x,n) = power(x,n-1)*x;
+    in
+        (*   BVal( Num( power(n1,n2) ) ) *)
+        BVal(Num( 10 ) )
+    end
+  | evalPow(v1,v2,pos) =
+        raise Error("Arguments of expression Pow Are Not Integers! Arg1: " ^ pp_val v1 ^ " Arg2: " ^ pp_val v2, pos)
+
 
 (***********************************************)
 (*** Getting/Setting an Array Index,         ***)
@@ -426,6 +437,7 @@ and execStmt ( Return   (SOME e,       _), vtab, ftab ) = SOME ( evalExp(e, vtab
           BVal(Log true ) => execBlock(then_stmts, vtab, ftab)
         | BVal(Log false) => execBlock(else_stmts, vtab, ftab)
         | otherwise => raise Error("in exec IF stmt: condition does not evaluate to a bool, at: ", pos) )
+        
   | execStmt ( While(cond, body, pos), vtab, ftab ) =
       ( case evalExp(cond, vtab, ftab) of
           BVal(Log true ) =>
@@ -434,6 +446,9 @@ and execStmt ( Return   (SOME e,       _), vtab, ftab ) = SOME ( evalExp(e, vtab
               | SOME v    => SOME v )
         | BVal(Log false) => NONE
         | otherwise => raise Error("in exec while: condition does not evaluate to a bool, at: ", pos) )
+        
+   | execStmt ( GuardedDo(a,pos), vtab, ftab ) = 
+        raise Error(" Interpret does not support Guarded Do", pos)
 
 (********************************************************************)
 (********************************************************************)
@@ -535,6 +550,12 @@ and evalExp ( Literal(lit,_), vtab, ftab ) = lit
         let val r = evalExp(e, vtab, ftab)
 	in  evalNot(r, pos)
 	end
+
+  | evalExp ( Pow(e1, e2, pos), vtab, ftab ) =
+        let val res1   = evalExp(e1, vtab, ftab)
+            val res2   = evalExp(e2, vtab, ftab)
+        in  evalPow(res1, res2, pos)
+        end
 
   (************************************************************************)
   (** application of regular functions, i.e., defined in the program     **)

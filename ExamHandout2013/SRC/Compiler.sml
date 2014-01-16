@@ -217,6 +217,24 @@ struct
         in c1 @ c2 @ [Mips.DIV (place,t1,t2)]
         end
 
+    | compileExp( vtable, Pow(e1, e2, _), place ) =
+        let val t0 = "pow0_" ^ newName()
+            val t1 = "pow1_" ^ newName()
+            val c1 = compileExp(vtable, e1, t1)
+            val t2 = "pow2_" ^ newName()
+            val c2 = compileExp(vtable, e2, t2)
+            val t3 = "pow3_" ^ newName()
+            val t4 = "powLabel_" ^ newName()
+            val t5 = "powLabel_" ^ newName()
+        in c1 @ c2 @ 
+        [Mips.SLT(t0, t2, "0"), Mips.BNE(t0,"0","_IllegalArrIndexError_")] (* Runtime error if negative input *)
+        @
+        [Mips.LI(t0, "1"), Mips.LABEL(t4), Mips.ADDI(t2,t2,"-1"),
+         Mips.SLT(t3, t2, "0"), Mips.BNE(t3, "0", t5),
+         Mips.MUL(t0, t0, t1),
+         Mips.J(t4), Mips.LABEL(t5), Mips.MOVE(place, t0)]
+        end
+
     | compileExp( vtable, Equal(e1, e2, _), place ) =
         let val t1 = "eq1_" ^ newName()
             val c1 = compileExp(vtable, e1, t1)
@@ -468,7 +486,88 @@ struct
 
       (*** EXAM: flat zipWith ***)
     | compileExp( vtable, ZipWith( (id,signat), arr_exp1, arr_exp2, pos ), place ) =
-        raise Error("EXAM TASK requires student implementation, please!", pos)
+        let
+            val e1 = "zip1_"^newName()
+            val c1 = compileExp(vtable,arr_exp1, e1)
+            val e2 = "zip2_"^newName()
+            val c2 = compileExp(vtable,arr_exp2, e2)
+            val (r1, btp1) =  case typeOfExp arr_exp1 of
+                Array(r,btp) => (r, btp)
+              | _ => raise Error("Second argument of zipWidth not that of array", pos)
+            val (r2, btp2) =  case typeOfExp arr_exp2 of
+                Array(r,btp) => (r, btp)
+              | _ => raise Error("Third argument of zipWidth not that of array", pos)
+            val elements = "zip_eleCount_"^newName()
+            val rt_array_size = "zip1_"^newName()
+            val tmp_1 = "zip2_"^newName()
+            val tmp_2 = "zip3_"^newName()
+            val tmp_dim1 = "zip_dim1_"^newName()
+            val tmp_dim2 = "zip_dim2_"^newName()
+            val arr_1 = "zip_arr1_"^newName()
+            val arr_2 = "zip_arr2_"^newName()
+            val val_1 = "zip_val1_"^newName()
+            val val_2 = "zip_val1_"^newName()
+            val elmOffset = "zip_offset"^newName()
+            val label_1 = "zip_array_"^newName()
+            val label_2 = "zip_array_"^newName()
+            val n_bytes = "zip10_"^newName()
+            val rt_tp = case signat of
+                        (fun_arg_tps, SOME fun_ret_tp) => fun_ret_tp
+                      | _ => raise Error("Unexpected signature of function in zipWith", pos)
+
+            fun return_offset(n) = case n of
+                        BType Int => 4
+                      | BType Bool => 1
+                      | BType Char => 1
+                      | Array(r, btp) => raise Error("Does not support zipWith over array arguments", pos)
+
+            val allocate_array = [ Mips.MOVE(place, HP),                 Mips.LI(tmp_1, makeConst(return_offset(rt_tp))),
+                                   Mips.MUL(rt_array_size, elements, tmp_1),  Mips.LI(n_bytes, "8"), 
+                                   Mips.LI(tmp_1, makeConst(r1)),     Mips.MUL(n_bytes,n_bytes,tmp_1),
+                                   Mips.ADD(n_bytes, n_bytes, rt_array_size), Mips.ADD (HP, HP, n_bytes) ]
+                                   
+            val find_data_start = [ Mips.LW(arr_1, e1, makeConst(8*r1-4)), Mips.LW(arr_2, e2, makeConst(8*r2-4)) ]
+            val flat_array_add = "zip_flat_"^newName()
+
+            fun offset(n) = case n of
+                        Int => 4
+                      | Bool => 1
+                      | Char => 1
+
+
+            fun compare_dims(0) = [ Mips.LW(tmp_dim1, e1, makeConst(0)),       Mips.LW(tmp_dim2, e2, makeConst(0)),       Mips.BNE(tmp_dim1, tmp_dim2, "_IllegalArrIndexError_"), Mips.MUL(elements, elements, tmp_dim1) ]
+              | compare_dims(n) = [ Mips.LW(tmp_dim1, e1, makeConst((n) * 4)), Mips.LW(tmp_dim2, e2, makeConst((n) * 4)), Mips.BNE(tmp_dim1, tmp_dim2, "_IllegalArrIndexError_"), Mips.MUL(elements, elements, tmp_dim1) ] @ compare_dims(n-1)
+
+            fun copy_meta(0) = [ Mips.LW(tmp_1, e1, "0"),            Mips.SW(tmp_1, place, "0") ]
+              | copy_meta(n) = [ Mips.LW(tmp_1, e1, makeConst(4*n)), Mips.SW(tmp_1, place, makeConst(4*n)) ] @ copy_meta(n-1)
+
+        in
+            if r1 = r2 andalso r1 > 0 then
+                c1 @ c2 @
+                [ Mips.LI(elements, "1") ] @
+                compare_dims(r1-1) @
+                allocate_array @
+                find_data_start @
+                copy_meta(2*r1-2) @ (* it's -2 because 1 is for skipping the array destination, and 1 is because of 0 indexing *)
+                [ Mips.ADDI(flat_array_add, place, makeConst(8*r1)), Mips.SW(flat_array_add, place, makeConst(8*r1-4)) ] @ (* assign pointer to flat array *)
+                [ Mips.LABEL(label_1), Mips.ADDI(elements, elements, "-1"), Mips.SLT(tmp_2, elements, "0") , Mips.BNE(tmp_2, "0", label_2) ] @
+                [ Mips.LI(tmp_1, makeConst(offset(btp1))), Mips.MUL(tmp_1, tmp_1, elements),Mips.ADD(tmp_1, tmp_1, arr_1) ] @
+                [ if offset(btp1) = 1
+                  then Mips.LB(val_1, tmp_1, "0")
+                  else Mips.LW(val_1, tmp_1, "0") ] @
+                [ Mips.LI(tmp_1, makeConst(offset(btp2))), Mips.MUL(tmp_1, tmp_1, elements),Mips.ADD(tmp_1, tmp_1, arr_2) ] @
+                [ if offset(btp2) = 1
+                  then Mips.LB(val_2, tmp_1, "0")
+                  else Mips.LW(val_1, tmp_1, "0") ] @
+                 mkFunCallCode( (id,signat),[val_1, val_2],vtable, tmp_2) @
+                [Mips.LI(tmp_1, Int.toString(return_offset(rt_tp))), Mips.MUL(tmp_1, tmp_1, elements), Mips.ADD(tmp_1, tmp_1, flat_array_add) ] @
+                [ if return_offset(rt_tp) = 1
+                  then Mips.SB(tmp_2, tmp_1, "0")
+                  else Mips.SW(tmp_2, tmp_1, "0") ] @
+                [ Mips.J(label_1), Mips.LABEL(label_2) ]
+            else
+                raise Error("Ranks of array arguments in zipWidth does not comply!", pos)
+        end
 
     (****************************************************************)
     (*** mkFunCallCode function. Input:                           ***)
@@ -682,6 +781,21 @@ struct
               val bCode = compileStmts block vtable exitLabel
           in [ Mips.LABEL entry ] @ eCode @ [ Mips.BEQ (eReg, "0", exit) ]
              @ bCode @ [ Mips.J entry, Mips.LABEL exit ]
+          end
+        | GuardedDo (arg,pos) =>
+          let
+            val entry = "_guardedEntry_" ^ newName()
+            fun determine_block(exp, block) =
+                let
+                    val eReg = "_guarded_"^ newName()
+                    val eCode = compileExp(vtable, exp, eReg)
+                    val bCode = compileStmts block vtable exitLabel
+                    val exit = "_guardedExit_"^ newName()
+                in
+                    eCode @ [Mips.BEQ (eReg, "0", exit) ] @ bCode @ [ Mips.J entry, Mips.LABEL exit]
+                end
+            fun merge_list(a , b) = a @ b
+          in [Mips.LABEL entry] @ foldr merge_list [] (map determine_block arg)
           end
 
   (* generate statements for an entire block.
